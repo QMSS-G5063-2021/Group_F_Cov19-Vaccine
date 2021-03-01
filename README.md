@@ -2,7 +2,7 @@ Group_F_Cov19-Vaccine
 ====  
 
 # Title：
-`Visualization of vaccination and related problems of COVID-19 vaccines.`
+`Visualization of vaccination process of COVID-19 and related comparisons.`
 
 # Group Members：
 `Di Wu`  email: dw2942@columbia.edu  <br>
