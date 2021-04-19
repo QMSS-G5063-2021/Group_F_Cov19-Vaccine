@@ -20,3 +20,8 @@ Our group wants to use the data visualization knowledge learned in class to trac
 
 We hope that through this assignment, ourselves and others can learn more about the progress of vaccination. We also hope to bring more confidence and courage to fight the epidemic for all.
 
+# Our Works:
+
+*** You can see all the pictures and charts we made in the document "Final Visualization Slides"
+*** You can see our process book in the document "Process Book"
+*** You can see our video presentations in the link here: https://youtu.be/MKjLyu_zqXI
