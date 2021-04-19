@@ -22,6 +22,6 @@ We hope that through this assignment, ourselves and others can learn more about 
 
 # Our Works:
 
-*** You can see all the pictures and charts we made in the document "Final Visualization Slides"
-*** You can see our process book in the document "Process Book"
+*** You can see all the pictures and charts we made in the document "Final Visualization Slides" <br>
+*** You can see our process book in the document "Process Book" <br>
 *** You can see our video presentations in the link here: https://youtu.be/MKjLyu_zqXI
