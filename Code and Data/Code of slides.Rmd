@@ -1,0 +1,356 @@
+---
+title: "Visualization of vaccination process of COVID-19 and related comparisons"
+author: "Weihao Lu, Yifan Feng, Di Wu, Ruimin Gao"
+date: "2021/4/18"
+output: slidy_presentation
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+library(ggplot2)
+library(ggthemes)
+library(rgdal)
+library(plyr) 
+library(dplyr)
+library(maps)
+library(maptools)
+library(plotly)
+library(threejs)
+library(readr) 
+library(dplyr)
+library(scales)
+library(readxl)
+library(readr)
+require(lubridate)
+library(plotly)
+library(highcharter)
+library(ggrepel)
+
+options(scipen = 100)
+worldmap <-readOGR(file.choose())
+x1 <- worldmap@data
+x1$id <- seq(0,205,1)
+worldmap1 <- fortify(worldmap)
+worldmapdata <- join(worldmap1, x1, type = "full")
+world_vaccinations <- read.csv(file.choose())
+data_3d <- read_excel(file.choose())
+world_vaccinations1 <- world_vaccinations %>%
+  filter(!is.na(total_vaccinations))
+world_vaccinations1 <- world_vaccinations1 %>%
+  group_by(location) %>%
+  filter(total_vaccinations_per_hundred==max(total_vaccinations_per_hundred))
+colnames(world_vaccinations1)[1]<-"NAME"
+colnames(world_vaccinations1)[2]<-"GMI_CNTRY"
+worldmapdata_all <- left_join(worldmapdata,world_vaccinations1)
+
+new_cases = read_csv(file.choose())
+vaccinations_by_states = read_csv("https://raw.githubusercontent.com/owid/covid-19-data/master/public/data/vaccinations/us_state_vaccinations.csv")
+covid_ensemble = read.csv("https://raw.githubusercontent.com/owid/covid-19-data/master/public/data/owid-covid-data.csv")
+covid_ensemble_cross_section = read.csv("https://raw.githubusercontent.com/owid/covid-19-data/master/public/data/latest/owid-covid-latest.csv") # latest data as of 4/15/2021
+length(unique(sort(vaccinations_by_states$location))) - length(unique(sort(new_cases$state))) # indicating difference number of states 
+sum(unique(new_cases$state) %in% unique(vaccinations_by_states$location)) - length(unique(new_cases$state)) # indicating one different state name--"New York State" vs "New York"
+vaccinations_by_states$location = gsub("New York State", "New York", vaccinations_by_states$location)
+new_cases$week = as.numeric(strftime(new_cases$date, format = "%V"))
+new_cases$year = year(new_cases$date)
+new_cases_by_week = new_cases %>% group_by(year, week, state) %>% summarise(new_cases = sum(cases))
+new_cases_by_week$week_accumulated = unlist(c(new_cases_by_week[1: 2440, "week"], (rep(53, 825) + new_cases_by_week$week[2441:3265]), rep(53,55)))
+covid_ensemble_key_features = covid_ensemble_cross_section[, c("continent", "location", "total_cases", "new_cases", "total_cases_per_million", "people_vaccinated", "people_vaccinated_per_hundred", "stringency_index", "population", "population_density", "gdp_per_capita", "life_expectancy")]
+covid_ensemble_key_features_bycontinent = subset(covid_ensemble_key_features, continent != "" & !is.na(people_vaccinated_per_hundred) & !is.na(total_cases_per_million))
+covid_ensemble_key_features_bycontinent$stringency_index_cut = cut(covid_ensemble_key_features_bycontinent$stringency_index, breaks = quantile(covid_ensemble_key_features_bycontinent$stringency_index, na.rm = T), labels = c("low", "median low", "median high", "high" ))
+covid_ensemble_key_features_bystri = subset(covid_ensemble_key_features_bycontinent, !is.na(stringency_index_cut))
+
+usyf <- read.csv(file.choose())
+# remove blank and NA
+us1yf <- usyf[complete.cases(usyf), ]
+#total number of fully vaccinated people by state ~1/13/2021
+fully_vaccinated_state1 <- us1yf %>%
+  group_by(location) %>%
+  dplyr::summarise(people_fully_vaccinated = min(people_fully_vaccinated))
+
+# generate location information for all states (using built-in data)
+state.info <- inner_join(data.frame(state=tolower(state.name), 
+                                    long=state.center$x, lat=state.center$y, 
+                                    stringsAsFactors=FALSE),
+                         data.frame(state=tolower(datasets::state.name), 
+                                    abbrev=datasets::state.abb))
+# lowercase
+fully_vaccinated_state1$location1 = tolower(fully_vaccinated_state1$location)
+fully_vaccinated_state1$location1[fully_vaccinated_state1$location1=='new york state']<- "new york"
+# innerjoin
+state.df1 <- fully_vaccinated_state1 %>% inner_join(state.info, by = c("location1" = "state"))
+
+# zoom in to US only
+usmap <- list(scope='usa', projection=list(type='albers usa'), 
+          showlakes=TRUE, lakecolor=toRGB('white'))
+
+fully_vaccinated_state <- us1yf %>%
+  group_by(location) %>%
+  dplyr::summarise(people_fully_vaccinated = max(people_fully_vaccinated))
+fully_vaccinated_state$location1 = tolower(fully_vaccinated_state$location)
+fully_vaccinated_state$location1[fully_vaccinated_state$location1=='new york state']<- "new york"
+state.df <- fully_vaccinated_state %>% inner_join(state.info, by = c("location1" = "state"))
+
+total_vaccinations_per_hundred <- us1yf %>%
+  group_by(location) %>%
+  dplyr::summarise(total_vaccinations_per_hundred = max(total_vaccinations_per_hundred))
+total_vaccinations_per_hundred$location1 = tolower(total_vaccinations_per_hundred$location)
+total_vaccinations_per_hundred$location1[total_vaccinations_per_hundred$location1=='new york state']<- "new york"
+total.df <- total_vaccinations_per_hundred %>% inner_join(state.info, by = c("location1" = "state"))
+
+people_fully_vaccinated_per_hundred <- us1yf %>%
+  group_by(location) %>%
+  dplyr::summarise(people_fully_vaccinated_per_hundred = max(people_fully_vaccinated_per_hundred))
+people_fully_vaccinated_per_hundred$location1 = tolower(people_fully_vaccinated_per_hundred$location)
+people_fully_vaccinated_per_hundred$location1[people_fully_vaccinated_per_hundred$location1=='new york state']<- "new york"
+fully.df <- people_fully_vaccinated_per_hundred %>% inner_join(state.info, by = c("location1" = "state"))
+
+# convert date info'
+us2yf <- us1yf
+us2yf$date <- format(as.Date(us2yf$date), "%m/%d")
+
+vaccinations1 <- us2yf %>% filter(
+  location %in% c("California", "New York State","Washington","Maine","Georgia","New Jersey"))
+```
+
+## Page 2/18  People Vaccinated Per Hundred of Different Places
+```{r warning=FALSE}
+vaccinations1 <- us2yf %>% filter(
+  location %in% c("California", "New York State","Washington","Maine","Georgia","New Jersey"))
+yfgg <- ggplot(vaccinations1, aes(distributed_per_hundred, people_fully_vaccinated_per_hundred,color = location)) +
+  geom_point(aes(size = people_fully_vaccinated_per_hundred, frame = date, ids = location))
+ggplotly(yfgg)
+```
+
+## Page 3/18  People Vaccinated Per Hundred
+```{r}
+(hc = hchart(covid_ensemble_key_features_bycontinent,
+       type = "bubble",
+  hcaes(x = total_cases_per_million,
+        y = people_vaccinated_per_hundred,
+        size = population_density,
+        group = continent)) %>% hc_title(
+    text = "<b>Cases vs Vaccination Rates</b> <i> by Continents</i>",
+    margin = 20,
+    align = "left",
+    style = list(color = "#22A884", useHTML = TRUE)
+    ) %>% hc_xAxis(title = list(text = "Total Cases Per Million")) %>%  hc_yAxis(title = list(text = "People Vaccinated Per Hundred")) %>%      hc_annotations(
+    list(
+      labelOptions = list(y = -0, x = 5),
+      labels = list(
+        list(
+          point = list(
+            x = 5,
+            y = -0 ,yAxis = 1
+          ),
+          text = "Bubble Size = Population Density"
+        )
+      )
+    )
+  ) %>% 
+  hc_credits(enabled = TRUE, text = "Source: GITHUB.COM/owid/covid-19-data",
+             style = list(fontSize = "12px"))) 
+```
+
+## Page 4/18  Cases vs Vaccination Rates by Continents
+```{r message=FALSE, warning=FALSE}
+(gg4 = ggplot(covid_ensemble_key_features_bycontinent, aes(x = total_cases_per_million,
+        y = people_vaccinated_per_hundred)) + scale_y_log10() +
+    geom_point(alpha = 0.6, aes(size = population_density, color = continent)) + geom_smooth(color="gold3", se=TRUE, size = 0.5) + xlab("Total Cases Per Million") + ylab("People Vaccinated Per Hundred (log scale)") + theme_tufte() + theme(legend.title = element_text(color = "aquamarine3", size = 10.5),legend.key.height=unit(1,"line"), legend.key.width=unit(3,"line"), axis.title.x = element_text(size=12, face = "bold", color="gold3", hjust=0.5), axis.ticks.y=element_blank(), axis.text.x = element_text(angle = 30, hjust = 1, colour = "gray30"), axis.text.y = element_text(angle = 30, hjust = 1, colour = "gray25"), axis.ticks.x=element_line(color = "yellow"),
+        title=element_text(hjust=0, vjust=0, color = "gold3", face = "bold", size=14), 
+        text=element_text(), axis.title.y = element_text(size=12, face = "bold", color="gold3", vjust = 2)) + ggtitle("Cases vs Vaccination Rates by Continents") + geom_text(aes(label = location), color = "lightskyblue", size = 4, data = filter(covid_ensemble_key_features_bycontinent, location == "United States")) + geom_text_repel(aes(label = location),
+              color = "brown1", size = 3,
+              data = filter(covid_ensemble_key_features_bycontinent, as.numeric(total_cases_per_million) >= as.numeric(quantile(total_cases_per_million)[3]) & people_vaccinated_per_hundred <= as.numeric(quantile(people_vaccinated_per_hundred)[3]))) +annotate("text", x = 159000, y = 0.03, adj=0.9,  family="serif", color = "gray50", size = 3,
+  label = c("Red Labels represent\nhigh-risk counrtries where\ntotal cases > median and\npeople vaccinated < median")))
+```
+
+## Page 5/18  Cases vs Vaccination Rates by Continents
+```{r message=FALSE, warning=FALSE}
+gg5 = ggplot(covid_ensemble_key_features_bycontinent, aes(x = total_cases_per_million,
+        y = people_vaccinated_per_hundred)) + scale_y_log10() +
+    geom_point(alpha = 0.6, aes(size = population_density, color = continent)) + geom_smooth(color="gold3", se=TRUE, size = 0.5) + xlab("Total Cases Per Million") + ylab("People Vaccinated Per Hundred (log scale)") + guides(colour = guide_legend(nrow = 1)) + theme_tufte() + theme(legend.position = "none", axis.title.x = element_text(size=12, face = "bold", color="gold3", hjust=0.5), axis.ticks.y=element_blank(), axis.text.x = element_text(angle = 30, hjust = 1, colour = "gray30"), axis.text.y = element_text(angle = 30, hjust = 1, colour = "gray25"), axis.ticks.x=element_line(color = "yellow"),
+        title=element_text(hjust=0, vjust=0, color = "gold3", face = "bold", size=14), 
+        text=element_text(), axis.title.y = element_text(size=12, face = "bold", color="gold3", vjust = 2)) + ggtitle("Cases vs Vaccination Rates by Continents") + geom_text(aes(label = location),
+              color = "brown1", size = 3.0,
+              data = filter(covid_ensemble_key_features_bycontinent, as.numeric(total_cases_per_million) >=as.numeric(quantile(total_cases_per_million)[3]) & as.numeric(people_vaccinated_per_hundred) <= as.numeric(quantile(people_vaccinated_per_hundred)[3]))) + geom_text(aes(label = location), color = "lightskyblue", size = 4, data = filter(covid_ensemble_key_features_bycontinent, location == "United States")) + annotate("text", x = 143000, y = 0.02, adj=0.9,  family="serif", color = "gray50", size = 4,
+  label = c("Red Labels represent\nhigh-risk counrtries where\ntotal cases > median and\npeople vaccinated < median"))
+
+ggplotly(gg5)
+```
+
+## Page 6/18  Covid 19 New Cases
+```{r}
+lwhcols<- c("#e7f0fa", 
+         "#c9e2f6", 
+         "#95cbee", 
+         "#0099dc", 
+         "#4ab04a", 
+         "#ffd73e", 
+         "#eec73a", 
+         "#e29421", 
+         "#f05336", 
+         "#ce472e") 
+
+(gg <- ggplot(new_cases_by_week, aes(y=state, x=week_accumulated, fill=new_cases)) + 
+  geom_tile(colour="white",
+            width=.9, height=.9) + theme_minimal() +
+  scale_fill_gradientn(colours=lwhcols, limits=c(0, 300000),
+                       values=c(0, 0.01, 0.02, 0.04, 0.1, 0.2, 0.3, .5, .7, .9, 1), 
+                       
+                       labels=c("75k", "150k", "225k", "300k"),
+                       guide=guide_colourbar(ticks=T, nbin=50,
+                                             barheight=.5, label=T, 
+                                             barwidth=15)) +
+  scale_x_continuous(expand=c(0,0), 
+                     breaks=seq(0, 70, by=10)) +
+  geom_segment(x=48, xend=48, y=0, yend=56, size=.8, color = "darkviolet") +
+  labs(x="", y="", fill="") +
+  ggtitle("Covid 19 New Cases", subtitle = "With Comparison") +
+  theme(legend.position=c(0.7, 1.05),
+        legend.direction="horizontal",
+        legend.text=element_text(),
+        axis.text.y=element_text(size=5.6, 
+                                 hjust=1),
+        axis.text.x=element_text(size=8),
+        axis.ticks.y=element_blank(),
+        panel.grid=element_blank(),
+        title=element_text(hjust=0, vjust=0, color = "gold3"), 
+        text=element_text()) +
+  annotate("text", label="Vaccination Approved", x= 40, y=59, 
+           vjust=1, hjust=0, size=I(4), color = "purple") + labs(size= "Nitrogen",
+       x = "Weeks from Jan. 2020",
+       y = "") + theme(axis.title.x = element_text(size=10, face = "bold", color="gold3", hjust=0.5)))
+
+
+```
+
+## Page 7/18  Total Number of Fully Vaccinated People on 1/13/2021
+```{r}
+fully_Jan <- plot_ly(state.df1, type='choropleth', locationmode='USA-states', 
+    locations=state.df1$abbrev, z=state.df1$people_fully_vaccinated, text=state.df1$location) %>% 
+    layout(geo=usmap, title='Total Number of Fully Vaccinated People on 1/13/2021')
+fully_Jan <- fully_Jan %>% colorbar(title = "Number of people")
+fully_Jan
+```
+
+## Page 8/18  Total Number of Fully Vaccinated People by State on 4/16/2021
+```{r}
+fully_apr <- plot_ly(state.df, type='choropleth', locationmode='USA-states', 
+    locations=state.df$abbrev, z=state.df$people_fully_vaccinated, text=state.df$location) %>% 
+    layout(geo=usmap, title='Total Number of Fully Vaccinated People by State on 4/16/2021')
+fully_apr <- fully_apr %>% colorbar(title = "Number of people")
+fully_apr
+```
+
+## Page 9/18  Changing Daily Vaccinations in 3 Months
+```{r warning=FALSE}
+#daily vaccination on 1/15/2021
+daily_vaccinations1 <- us1yf %>% filter(
+  date %in% c("", "2021/1/15" ))
+daily_vaccinations1 <- daily_vaccinations1[,c(1,2,12)]
+#daily vaccination on 4/15/2021
+daily_vaccinations2 <- us1yf %>% filter(
+  date %in% c("", "2021/4/15" ))
+daily_vaccinations2 <- daily_vaccinations2[,c(1,2,12)]
+#merge
+daily.df <- daily_vaccinations1 %>% inner_join(daily_vaccinations2, by = c("location" = "location"))
+daily.df$change <- (daily.df$daily_vaccinations.y-daily.df$daily_vaccinations.x)/daily.df$daily_vaccinations.x
+daily.df$change <- round(daily.df$change,2)
+
+daily.df$location1 = tolower(daily.df$location)
+daily.df$location1[daily.df$location1=='new york state']<- "new york"
+#innerjoin
+daily.df <- daily.df %>% inner_join(state.info, by = c("location1" = "state"))
+
+change <- plot_ly(daily.df, type='choropleth', locationmode='USA-states', 
+    locations=daily.df$abbrev, z=daily.df$change, text=daily.df$location) %>% 
+    layout(geo=usmap, title='Changing Daily Vaccinations in 3 Months')
+change <- change %>% colorbar(title = "Multiplier")
+change
+```
+
+## Page 10/18  Total Vaccinations per Hundred on 4/16/2021
+```{r}
+total_apr <- plot_ly(total.df, type='choropleth', locationmode='USA-states', 
+    locations=total.df$abbrev, z=total.df$total_vaccinations_per_hundred, text=total.df$location) %>% 
+    layout(geo=usmap, title='Total Vaccinations per Hundred on 4/16/2021')
+total_apr <- total_apr %>% colorbar(title = "Total Vaccinations per Hundred")
+total_apr
+```
+
+
+## Page 11/18  Global Vaccination Rates
+
+```{r}
+map1 <- ggplot(worldmapdata_all, aes(x = long, y = lat, group = group,fill = total_vaccinations_per_hundred)) +
+  geom_polygon(colour="lightgrey") +
+  scale_fill_gradient(low="white",high="steelblue") + 
+  coord_map("gilbert",orientation=c(90,0,0))+
+  theme(
+    panel.grid = element_blank(),
+    panel.background = element_blank(),
+    axis.text = element_blank(),
+    axis.ticks = element_blank(),
+    axis.title = element_blank()
+  )
+map1
+```
+
+## Page 12/18  Global Vaccination Rates -- Interactive Map(Globe)
+```{r}
+data_3d_all <- inner_join(world_vaccinations1,data_3d,by="NAME")
+value <- 100*data_3d_all$total_vaccinations_per_hundred/max(data_3d_all$total_vaccinations_per_hundred) 
+col <- colorRampPalette(c('cyan','lightgreen'))(10)[floor(10*value/100)+1]
+globejs(lat = data_3d_all$latitude,
+        long = data_3d_all$longitude, 
+        val = data_3d_all$total_vaccinations_per_hundred, 
+        color = col,
+        pointsize = 3, 
+        atmosphere = TRUE, 
+        bg = "white")
+```
+
+
+## Page 13/18  Global Vaccination Rates -- Interactive Map
+```{r}
+ggplotly(map1)
+```
+
+
+## Page 14/18  Global Vaccination Numbers
+```{r}
+map2 <- ggplot(worldmapdata_all, aes(x = long, y = lat, group = group,fill = total_vaccinations)) +
+  geom_polygon(colour="lightgrey") +
+  scale_fill_gradient(low="white",high="steelblue") + 
+  coord_map("gilbert",orientation=c(90,0,0))+
+  theme(
+    panel.grid = element_blank(),
+    panel.background = element_blank(),
+    axis.text = element_blank(),
+    axis.ticks = element_blank(),
+    axis.title = element_blank()
+  )
+map2
+```
+
+## Page 15/18  Global Vaccination Numbers -- Interactive Map
+```{r}
+ggplotly(map2)
+```
+
+## Page 16/18  Word Cloud
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+knitr::include_graphics("C:/Users/think/Desktop/pictures/a.jpg")
+#This picture used python as well
+```
+
+## Page 17/18  Topic Words
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+knitr::include_graphics("C:/Users/think/Desktop/pictures/b.jpg")
+#This picture used python as well
+```
+
+## Page 18/18  Top 5 Words in Each Month
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+knitr::include_graphics("C:/Users/think/Desktop/pictures/c.jpg")
+#This picture used python as well
+```
