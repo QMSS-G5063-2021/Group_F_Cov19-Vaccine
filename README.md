@@ -27,8 +27,8 @@ We hope that through this assignment, ourselves and others can learn more about 
 *** You can see our process book in the document "Process Book.pdf" <br>
 *** You can see our video presentations in the link here: https://youtu.be/MKjLyu_zqXI
 
-# Our Works:
+# Data Resources:
 
-Our data sources are listed in our Process Book which you could find in the document "Process Book.pdf"
+Our data sources are specifically listed in our Process Book which you could find in the document "Process Book.pdf". Also, we have added all data documents which we downloaded from the internet and the codes we used into the file "Code and Data".
 
 Thank you a lot for looking at our works!!
