@@ -23,6 +23,7 @@ We hope that through this assignment, ourselves and others can learn more about 
 # Our Works:
 
 *** You can see all the pictures and interactive ones we made in the document "Final Visualization Slides.html" <br>
+*** You can see it on the RPub in this link: https://rpubs.com/myrpubs_ruimin/757650
 *** You can see our process book in the document "Process Book.pdf" <br>
 *** You can see our video presentations in the link here: https://youtu.be/MKjLyu_zqXI
 
