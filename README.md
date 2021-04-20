@@ -31,4 +31,4 @@ We hope that through this assignment, ourselves and others can learn more about 
 
 Our data sources are listed in our Process Book which you could find in the document "Process Book.pdf"
 
-# Thank you a lot for looking at our works!!
+Thank you a lot for looking at our works!!
